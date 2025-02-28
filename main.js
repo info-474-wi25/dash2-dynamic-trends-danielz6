@@ -37,6 +37,26 @@ d3.csv("aircraft_incidents.csv").then(data => {
     .range([height - margin.top - margin.bottom, 0]);
 
     // 4.a: PLOT DATA FOR CHART 1
+    svg.append("g")
+        .attr("transform", `translate(0,${height})`)
+        .call(d3.axisBottom(xScale).tickFormat(d3.format("d")));
+
+    svg.append("g")
+        .call(d3.axisLeft(yScale));
+
+    // Define the line generator
+    const line = d3.line()
+        .x(d => xScale(d.Year))
+        .y(d => yScale(d.Count))
+        .curve(d3.curveMonotoneX);
+
+    // Append the line path
+    svg.append("path")
+        .datum(data)
+        .attr("fill", "none")
+        .attr("stroke", "steelblue")
+        .attr("stroke-width", 2)
+        .attr("d", line);
 
 
     // 5.a: ADD AXES FOR CHART 1
