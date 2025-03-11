@@ -1,4 +1,4 @@
-// Set up the SVG canvas dimensions
+// / Set up the SVG canvas dimensions
 const margin = { top: 50, right: 30, bottom: 60, left: 70 };
 const width = 900 - margin.left - margin.right;
 const height = 400 - margin.top - margin.bottom;
@@ -11,6 +11,7 @@ const svg = d3.select("#lineChart1")
 // (If applicable) Tooltip element for interactivity
 // const tooltip = ...
 
+let xScale, yScale, flattenedData;
 // 2.a: LOAD...
 d3.csv("aircraft_incidents.csv").then(data => {
     console.log("Loaded Data:", data);
@@ -18,21 +19,30 @@ d3.csv("aircraft_incidents.csv").then(data => {
 
 //2.b: ... AND TRANSFORM DATA
     data.forEach(d => {
-        d.Year = +d["Row Labels"]; 
-        d.Count = +d["Count of Accident_Number"]; 
+        d.Year = new Date(d["Event_Date"]).getFullYear(); 
+     //   d.Count = +d["Count of Accident_Number"]; 
+        d.Make = d["Make"]
     });
     data.sort((a, b) => a.Year - b.Year);
-
-    console.log("Years:", data.map(d => d.Year)); 
-    console.log("Counts:", data.map(d => d.Count));  
-
+    const aggregatedData = Array.from(
+        d3.rollup(data, v => v.length, d => d.Year, d => d.Make),
+        ([year, makeMap]) => {
+            return Array.from(makeMap, ([make, count]) => ({
+                Year: +year,
+                Make: make,
+                Count: count
+            }));
+        }
+    ).flat();
+    console.log("Aggregated Data:", aggregatedData);
+    flattenedData = aggregatedData; 
     // 3.a: SET SCALES FOR CHART 1
-    const xScale = d3.scaleLinear()
-        .domain(d3.extent(data, d => d.Year))
+    xScale = d3.scaleLinear()
+        .domain(d3.extent(aggregatedData, d => d.Year))
         .range([0, width]);
 
-    const yScale = d3.scaleLinear()
-        .domain([0, d3.max(data, d => d.Count) / 8])
+    yScale = d3.scaleLinear()
+        .domain([0, d3.max(aggregatedData, d => d.Count)])
         .range([height, 0]);
 
     svg.append("g")
@@ -40,6 +50,7 @@ d3.csv("aircraft_incidents.csv").then(data => {
         .call(d3.axisBottom(xScale).tickFormat(d3.format("d")));
 
     svg.append("g")
+        .attr("class", "y-axis")
         .call(d3.axisLeft(yScale));
 
     const line = d3.line()
@@ -81,4 +92,59 @@ d3.csv("aircraft_incidents.csv").then(data => {
         .attr("y", 10)
         .text("Aircraft Incidents");
 
+        updateChart("all");
+        
+
 });
+document.addEventListener("DOMContentLoaded", function() {
+    d3.select("#categorySelect").on("change", function() {
+      var selectedMake = d3.select(this).property("value");
+      updateChart(selectedMake);
+    });
+});
+
+function updateChart(selectedMake) {
+    if (selectedMake === "all") {
+        const totalByYear = d3.rollup(
+            flattenedData,
+            v => d3.sum(v, d => d.Count),
+            d => d.Year
+        );
+        selectedMakeData = Array.from(totalByYear, ([year, count]) => ({ Year: +year, Count: count }));
+    } else {
+        selectedMakeData = flattenedData.filter(d => d.Make === selectedMake);
+    }
+
+    const [minYear, maxYear] = xScale.domain();
+    const fullSeries = d3.range(minYear, maxYear + 1).map(year => {
+        const entry = selectedMakeData.find(d => d.Year === year);
+        return { Year: year, Count: entry ? entry.Count : 0 };
+    });
+    
+    console.log("Full Series for", selectedMake, ":", fullSeries);
+    
+    const newMax = d3.max(fullSeries, d => d.Count);
+    yScale.domain([0, newMax]);
+    
+    svg.select("g.y-axis")
+       .transition()
+       .duration(500)
+       .call(d3.axisLeft(yScale));
+    
+    svg.selectAll("path.data-line").remove();
+    svg.selectAll(".trendline").remove();
+    
+    svg.selectAll("path.data-line")
+      .data([selectedMakeData]) 
+      .enter()
+      .append("path")
+      .attr("class", "data-line")
+      .attr("d", d3.line()
+          .x(function(d) { return xScale(d.Year); })
+          .y(function(d) { return yScale(d.Count); })
+          .curve(d3.curveMonotoneX)
+      )
+      .style("stroke", "steelblue")
+      .style("fill", "none")
+      .style("stroke-width", 2);
+    }
