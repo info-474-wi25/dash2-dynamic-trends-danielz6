@@ -20,9 +20,8 @@ d3.csv("aircraft_incidents.csv").then(data => {
 //2.b: ... AND TRANSFORM DATA
     data.forEach(d => {
         d.Year = new Date(d["Event_Date"]).getFullYear(); 
-     //   d.Count = +d["Count of Accident_Number"]; 
         d.Make = d["Make"]
-    });
+    }); 
     data.sort((a, b) => a.Year - b.Year);
     const aggregatedData = Array.from(
         d3.rollup(data, v => v.length, d => d.Year, d => d.Make),
@@ -77,20 +76,6 @@ d3.csv("aircraft_incidents.csv").then(data => {
         .attr("y", -margin.left + 15)
         .attr("text-anchor", "middle")
         .text("Number of Incidents");
-
-    const legend = svg.append("g")
-        .attr("class", "legend")
-        .attr("transform", `translate(${width - 150}, 10)`);
-    
-    legend.append("rect")
-        .attr("width", 10)
-        .attr("height", 10)
-        .attr("fill", "steelblue");
-    
-    legend.append("text")
-        .attr("x", 20)
-        .attr("y", 10)
-        .text("Aircraft Incidents");
 
         updateChart("all");
         
